@@ -13,8 +13,8 @@ type Notification struct {
 
 type NotificationData struct {
 	Type      NotificationType `json:"type"`
-	SessionID string           `json:"sessionId"`
-	SenderID  string           `json:"senderId"`
+	SessionID int64            `json:"sessionId"`
+	SenderID  int64            `json:"senderId"`
 	Message   string           `json:"message"`
 }
 

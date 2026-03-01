@@ -1,14 +1,20 @@
 package infrastructure
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"tenet-notify/internal/model"
 	"tenet-notify/internal/service"
 
-	"context"
-
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+const (
+	ExchangeName        = "notification.exchange"
+	RoutingKey          = "notification"
+	QueueName           = "notification.incoming.queue"
+	DeadLetterQueueName = "notification.dead.letter.queue"
 )
 
 type RabbitMQConsumer struct {
@@ -37,14 +43,62 @@ func NewRabbitMQConsumer(url string, adapter service.NotificationAdapter) (*Rabb
 		return nil, err
 	}
 
-	// Declare queue to ensure it exists
+	// Declare exchange
+	err = ch.ExchangeDeclare(
+		ExchangeName,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	// Declare dead letter queue
 	_, err = ch.QueueDeclare(
-		"notifications", // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
+		DeadLetterQueueName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	// Declare main queue with dead letter configuration
+	_, err = ch.QueueDeclare(
+		QueueName,
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{
+			"x-dead-letter-exchange":    "",
+			"x-dead-letter-routing-key": DeadLetterQueueName,
+		},
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	// Bind queue to exchange
+	err = ch.QueueBind(
+		QueueName,
+		RoutingKey,
+		ExchangeName,
+		false,
+		nil,
 	)
 	if err != nil {
 		ch.Close()
@@ -61,7 +115,7 @@ func NewRabbitMQConsumer(url string, adapter service.NotificationAdapter) (*Rabb
 
 func (c *RabbitMQConsumer) Start(ctx context.Context) error {
 	msgs, err := c.channel.Consume(
-		"notifications", // queue
+		QueueName,
 		"",              // consumer
 		true,            // auto-ack
 		false,           // exclusive

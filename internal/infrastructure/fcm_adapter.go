@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 
 	"tenet-notify/internal/model"
 
@@ -17,7 +18,7 @@ type FCMAdapter struct {
 }
 
 func NewFCMAdapter(ctx context.Context, credentialsPath string) (*FCMAdapter, error) {
-	opt := option.WithCredentialsFile(credentialsPath)
+	opt := option.WithAuthCredentialsFile(option.ServiceAccount, credentialsPath)
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing firebase app: %v", err)
@@ -36,8 +37,8 @@ func (a *FCMAdapter) Send(ctx context.Context, notification model.Notification) 
 		Token: notification.Token,
 		Data: map[string]string{
 			"type":      string(notification.Data.Type),
-			"sessionId": notification.Data.SessionID,
-			"senderId":  notification.Data.SenderID,
+			"sessionId": strconv.FormatInt(notification.Data.SessionID, 10),
+			"senderId":  strconv.FormatInt(notification.Data.SenderID, 10),
 			"message":   notification.Data.Message,
 		},
 	}
